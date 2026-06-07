@@ -10,7 +10,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=False,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
@@ -18,11 +18,6 @@ app.add_middleware(
 @app.get("/")
 def home():
     return {"message": "Vercel latency API is running"}
-
-
-@app.options("/{path:path}")
-def options_handler(path: str):
-    return {"ok": True}
 
 
 def load_data():
@@ -39,8 +34,7 @@ def p95(values):
     return values[index]
 
 
-@app.post("/api/latency")
-async def latency(request: Request):
+async def calculate_latency(request: Request):
     body = await request.json()
 
     regions = body.get("regions", [])
@@ -55,7 +49,7 @@ async def latency(request: Request):
         latencies = [row.get("latency_ms", 0) for row in records]
         uptimes = [row.get("uptime", 0) for row in records]
 
-        if len(records) == 0:
+        if not records:
             result[region] = {
                 "avg_latency": 0,
                 "p95_latency": 0,
@@ -71,3 +65,13 @@ async def latency(request: Request):
             }
 
     return result
+
+
+@app.post("/api/latency")
+async def latency_api(request: Request):
+    return await calculate_latency(request)
+
+
+@app.post("/latency")
+async def latency_direct(request: Request):
+    return await calculate_latency(request)
