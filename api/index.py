@@ -6,12 +6,14 @@ import math
 
 app = FastAPI()
 
+# CORS setup for IITM checker/browser requests
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["POST", "GET", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
+    expose_headers=["Access-Control-Allow-Origin"],
 )
 
 
@@ -20,21 +22,19 @@ def home():
     return {"message": "Vercel latency API is running"}
 
 
-@app.options("/{rest_of_path:path}")
-async def preflight_handler(rest_of_path: str):
-    return {"ok": True}
-
-
 def load_data():
     file_path = os.path.join(os.path.dirname(__file__), "q-vercel-latency.json")
-    with open(file_path, "r", encoding="utf-8") as f:
-        return json.load(f)
+
+    with open(file_path, "r", encoding="utf-8") as file:
+        return json.load(file)
 
 
 def p95(values):
     values = sorted(values)
+
     if not values:
         return 0
+
     index = math.ceil(0.95 * len(values)) - 1
     return values[index]
 
@@ -66,7 +66,7 @@ async def calculate_latency(request: Request):
                 "avg_latency": round(sum(latencies) / len(latencies), 2),
                 "p95_latency": round(p95(latencies), 2),
                 "avg_uptime": round(sum(uptimes) / len(uptimes), 4),
-                "breaches": sum(1 for x in latencies if x > threshold_ms)
+                "breaches": sum(1 for latency in latencies if latency > threshold_ms)
             }
 
     return result
@@ -84,4 +84,9 @@ async def latency_direct(request: Request):
 
 @app.get("/api/latency")
 async def latency_get():
-    return {"message": "Use POST request"}
+    return {"message": "Use POST request with JSON body"}
+
+
+@app.get("/latency")
+async def latency_direct_get():
+    return {"message": "Use POST request with JSON body"}
