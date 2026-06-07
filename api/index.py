@@ -6,7 +6,6 @@ import math
 
 app = FastAPI()
 
-# CORS setup required for IITM checker/browser requests
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -37,9 +36,7 @@ def p95(values):
     if not values:
         return 0
 
-    # Linear interpolation percentile, same style as NumPy/Pandas default
-    n = len(values)
-    position = 0.95 * (n - 1)
+    position = 0.95 * (len(values) - 1)
 
     lower_index = math.floor(position)
     upper_index = math.ceil(position)
@@ -49,7 +46,6 @@ def p95(values):
 
     lower_value = values[lower_index]
     upper_value = values[upper_index]
-
     fraction = position - lower_index
 
     return lower_value + (upper_value - lower_value) * fraction
@@ -75,8 +71,9 @@ async def calculate_latency(request: Request):
             for row in records
         ]
 
+        # Correct uptime column
         uptimes = [
-            row.get("uptime", 0)
+            row.get("uptime_pct", row.get("uptime", 0))
             for row in records
         ]
 
@@ -91,14 +88,13 @@ async def calculate_latency(request: Request):
             result[region] = {
                 "avg_latency": round(sum(latencies) / len(latencies), 2),
                 "p95_latency": round(p95(latencies), 2),
-                "avg_uptime": round(sum(uptimes) / len(uptimes), 4),
+                "avg_uptime": round(sum(uptimes) / len(uptimes), 2),
                 "breaches": sum(
                     1 for latency in latencies
                     if latency > threshold_ms
                 )
             }
 
-    # IITM checker expects regions object/array
     return {
         "regions": result
     }
