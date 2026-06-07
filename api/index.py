@@ -6,7 +6,7 @@ import math
 
 app = FastAPI()
 
-# CORS setup required for IITM checker
+# CORS setup required for IITM checker/browser requests
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -37,20 +37,34 @@ def p95(values):
     if not values:
         return 0
 
-    index = math.ceil(0.95 * len(values)) - 1
-    return values[index]
+    # Linear interpolation percentile, same style as NumPy/Pandas default
+    n = len(values)
+    position = 0.95 * (n - 1)
+
+    lower_index = math.floor(position)
+    upper_index = math.ceil(position)
+
+    if lower_index == upper_index:
+        return values[lower_index]
+
+    lower_value = values[lower_index]
+    upper_value = values[upper_index]
+
+    fraction = position - lower_index
+
+    return lower_value + (upper_value - lower_value) * fraction
 
 
 async def calculate_latency(request: Request):
     body = await request.json()
 
-    regions = body.get("regions", [])
+    requested_regions = body.get("regions", [])
     threshold_ms = body.get("threshold_ms", 180)
 
     data = load_data()
     result = {}
 
-    for region in regions:
+    for region in requested_regions:
         records = [
             row for row in data
             if row.get("region") == region
@@ -84,7 +98,7 @@ async def calculate_latency(request: Request):
                 )
             }
 
-    # IITM checker expects a regions object/array
+    # IITM checker expects regions object/array
     return {
         "regions": result
     }
