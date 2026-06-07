@@ -1,29 +1,28 @@
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 import json
 import os
 import math
 
 app = FastAPI()
 
-
-# Manual CORS middleware
-@app.middleware("http")
-async def add_cors_headers(request: Request, call_next):
-    if request.method == "OPTIONS":
-        response = JSONResponse(content={"ok": True})
-    else:
-        response = await call_next(request)
-
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "*"
-    return response
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/")
 def home():
     return {"message": "Vercel latency API is running"}
+
+
+@app.options("/{rest_of_path:path}")
+async def preflight_handler(rest_of_path: str):
+    return {"ok": True}
 
 
 def load_data():
@@ -83,11 +82,6 @@ async def latency_direct(request: Request):
     return await calculate_latency(request)
 
 
-@app.options("/api/latency")
-def options_latency_api():
-    return {"ok": True}
-
-
-@app.options("/latency")
-def options_latency_direct():
-    return {"ok": True}
+@app.get("/api/latency")
+async def latency_get():
+    return {"message": "Use POST request"}
