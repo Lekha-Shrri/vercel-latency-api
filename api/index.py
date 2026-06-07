@@ -1,42 +1,18 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import List
 import json
 import os
-from statistics import mean
+import math
 
 app = FastAPI()
 
-# Enable CORS for POST requests from any origin
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
-
-
-class LatencyRequest(BaseModel):
-    regions: List[str]
-    threshold_ms: float = 180
-
-
-def load_telemetry():
-    file_path = os.path.join(os.path.dirname(__file__), "q-vercel-latency.json")
-
-    with open(file_path, "r") as file:
-        return json.load(file)
-
-
-def get_p95(values):
-    if not values:
-        return 0
-
-    values = sorted(values)
-    index = int(0.95 * (len(values) - 1))
-    return values[index]
 
 
 @app.get("/")
@@ -44,35 +20,54 @@ def home():
     return {"message": "Vercel latency API is running"}
 
 
+@app.options("/{path:path}")
+def options_handler(path: str):
+    return {"ok": True}
+
+
+def load_data():
+    file_path = os.path.join(os.path.dirname(__file__), "q-vercel-latency.json")
+    with open(file_path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def p95(values):
+    values = sorted(values)
+    if not values:
+        return 0
+    index = math.ceil(0.95 * len(values)) - 1
+    return values[index]
+
+
 @app.post("/api/latency")
-def latency_endpoint(request: LatencyRequest):
-    data = load_telemetry()
-    response = {}
+async def latency(request: Request):
+    body = await request.json()
 
-    for region in request.regions:
-        region_records = []
+    regions = body.get("regions", [])
+    threshold_ms = body.get("threshold_ms", 180)
 
-        for item in data:
-            if item.get("region") == region:
-                region_records.append(item)
+    data = load_data()
+    result = {}
 
-        if not region_records:
-            response[region] = {
+    for region in regions:
+        records = [row for row in data if row.get("region") == region]
+
+        latencies = [row.get("latency_ms", 0) for row in records]
+        uptimes = [row.get("uptime", 0) for row in records]
+
+        if len(records) == 0:
+            result[region] = {
                 "avg_latency": 0,
                 "p95_latency": 0,
                 "avg_uptime": 0,
                 "breaches": 0
             }
-            continue
+        else:
+            result[region] = {
+                "avg_latency": round(sum(latencies) / len(latencies), 2),
+                "p95_latency": round(p95(latencies), 2),
+                "avg_uptime": round(sum(uptimes) / len(uptimes), 4),
+                "breaches": sum(1 for x in latencies if x > threshold_ms)
+            }
 
-        latencies = [item["latency_ms"] for item in region_records]
-        uptimes = [item["uptime"] for item in region_records]
-
-        response[region] = {
-            "avg_latency": round(mean(latencies), 2),
-            "p95_latency": round(get_p95(latencies), 2),
-            "avg_uptime": round(mean(uptimes), 4),
-            "breaches": sum(1 for latency in latencies if latency > request.threshold_ms)
-        }
-
-    return response
+    return result
