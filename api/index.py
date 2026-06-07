@@ -6,7 +6,7 @@ import math
 
 app = FastAPI()
 
-# CORS setup for IITM checker/browser requests
+# CORS setup required for IITM checker
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -19,7 +19,9 @@ app.add_middleware(
 
 @app.get("/")
 def home():
-    return {"message": "Vercel latency API is running"}
+    return {
+        "message": "Vercel latency API is running"
+    }
 
 
 def load_data():
@@ -49,10 +51,20 @@ async def calculate_latency(request: Request):
     result = {}
 
     for region in regions:
-        records = [row for row in data if row.get("region") == region]
+        records = [
+            row for row in data
+            if row.get("region") == region
+        ]
 
-        latencies = [row.get("latency_ms", 0) for row in records]
-        uptimes = [row.get("uptime", 0) for row in records]
+        latencies = [
+            row.get("latency_ms", 0)
+            for row in records
+        ]
+
+        uptimes = [
+            row.get("uptime", 0)
+            for row in records
+        ]
 
         if not records:
             result[region] = {
@@ -66,10 +78,16 @@ async def calculate_latency(request: Request):
                 "avg_latency": round(sum(latencies) / len(latencies), 2),
                 "p95_latency": round(p95(latencies), 2),
                 "avg_uptime": round(sum(uptimes) / len(uptimes), 4),
-                "breaches": sum(1 for latency in latencies if latency > threshold_ms)
+                "breaches": sum(
+                    1 for latency in latencies
+                    if latency > threshold_ms
+                )
             }
 
-    return result
+    # IITM checker expects a regions object/array
+    return {
+        "regions": result
+    }
 
 
 @app.post("/api/latency")
@@ -84,9 +102,13 @@ async def latency_direct(request: Request):
 
 @app.get("/api/latency")
 async def latency_get():
-    return {"message": "Use POST request with JSON body"}
+    return {
+        "message": "Use POST request with JSON body"
+    }
 
 
 @app.get("/latency")
 async def latency_direct_get():
-    return {"message": "Use POST request with JSON body"}
+    return {
+        "message": "Use POST request with JSON body"
+    }
